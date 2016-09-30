@@ -1,0 +1,1 @@
+ogr2ogr -f 'PostgreSQL' PG:'host=localhost dbname=POI3D user=postgres password=Mileslee123' ausnsw___________nw.shp

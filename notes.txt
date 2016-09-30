@@ -1,0 +1,6 @@
+run python manage.py inspectdb > models.py to establish a model for db automatically
+
+but usually load the data into database first, and then run:
+python manage.py ogrinspect POI3D/MNRIO_NSW/ausnsw___________nw.shp RoadNW --srid=4326 --mapping > models.py
+
+to create model with layermapping

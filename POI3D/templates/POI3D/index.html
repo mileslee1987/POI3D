@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>3D POI with TOMTOM API</title>
+  <style>
+    html,
+    body,
+    #viewDiv {
+      padding: 0;
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+
+    #poisearchDiv {
+      z-index: 3;
+      position: absolute;
+      top: 200px;
+      left: 30px;
+    }
+
+    #poiLegend {
+      z-index: 3;
+      position: absolute;
+      top: 200px;
+      right: 0px;
+    }
+
+    #poiLogo {
+      z-index: 3;
+      position: absolute;
+      bottom: 30px;
+      right: 20px;
+
+    }
+
+
+    #MybuttonSearch, #MybuttonClear {
+      background-color: #4CAF50;
+      border: none;
+      color: white;
+      padding: 5px 5px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 15px;
+      margin: 4px 2px;
+      cursor: pointer;
+      border-radius: 10px;
+    }
+  </style>
+
+  <link rel="stylesheet" href="https://js.arcgis.com/4.0/esri/css/main.css">
+  <script src="https://js.arcgis.com/4.0/"></script>
+
+  <link rel="stylesheet" type="text/css" href="http://www.jeasyui.com/easyui/themes/default/easyui.css">
+  <link rel="stylesheet" type="text/css" href="http://www.jeasyui.com/easyui/themes/icon.css">
+  <link rel="stylesheet" type="text/css" href="http://www.jeasyui.com/easyui/demo/demo.css">
+  <script type="text/javascript" src="http://code.jquery.com/jquery-1.6.1.min.js"></script>
+  <script type="text/javascript" src="http://www.jeasyui.com/easyui/jquery.easyui.min.js"></script>
+
+  <script>
+
+    require([
+      "esri/Map",
+      "esri/views/SceneView",
+      "esri/widgets/Search",
+      "esri/symbols/PointSymbol3D",
+      "esri/symbols/IconSymbol3DLayer",
+      "esri/request",
+      "esri/config",
+      "esri/geometry/Point", 
+      "esri/layers/FeatureLayer",
+      "esri/renderers/SimpleRenderer",
+      "esri/layers/GraphicsLayer",
+      "esri/Graphic",
+      "esri/symbols/SimpleMarkerSymbol",
+      "esri/geometry/SpatialReference",
+      "esri/PopupTemplate",
+      "esri/widgets/Legend",
+      //"esri/layers/OpenStreetMapLayer",
+      "dojo/domReady!"
+      ], function Main(Map, SceneView, Search, PointSymbol3D, IconSymbol3DLayer, esriRequest, esriConfig, Point, FeatureLayer, SimpleRenderer, GraphicsLayer, Graphic, SimpleMarkerSymbol, SpatialReference, PopupTemplate, Legend) {
+
+        var map, view, search;
+        
+        map = new Map({
+          basemap: "streets",
+          ground: "world-elevation"
+        });
+
+        //esriConfig.request.corsEnabledServers.push("http://a.tile.openstreetmap.org","http://b.tile.openstreetmap.org", "http://c.tile.openstreetmap.org");
+        //map.add(new OpenStreetMapLayer());
+
+        view = new SceneView({
+          container: "viewDiv",
+          map: map,
+          scale: 50000000,
+          center: [151, -33]
+        });
+
+        search = new Search({
+          view: view
+        });
+
+        view.on("click", function(event){
+          var Lat = event.mapPoint.latitude;
+          var Lon = event.mapPoint.longitude;
+          $('[name=Lat]').val(Lat);
+          $('[name=Lon]').val(Lon);
+          $("#Lat").textbox('setText', Lat);  //EasyUI special methods, otherwise even the value changed but the text is still not changed
+          $("#Lon").textbox('setText', Lon);  //Usually use $(..).val("ur value")
+        });
+
+        view.ui.add(search, "top-right");
+
+        var packages =  {
+          "PointSymbol3D" : PointSymbol3D,
+          "IconSymbol3DLayer": IconSymbol3DLayer,
+          "esriRequest" : esriRequest,
+          "esriConfig" : esriConfig,
+          "GraphicsLayer" : GraphicsLayer,
+          "map" : map,
+          "Point" : Point,
+          "SimpleRenderer": SimpleRenderer,
+          "Graphic" : Graphic,
+          "SimpleMarkerSymbol": SimpleMarkerSymbol,
+          "SpatialReference": SpatialReference,
+          "view" : view,
+          "PopupTemplate" : PopupTemplate,
+          "Legend" : Legend,
+          "FeatureLayer" : FeatureLayer
+        };
+
+        ClickSearch = OnClickSearch(packages);  //BIBAO
+        ClickClear = OnClickClear(packages);    //BIBAO
+
+      });
+</script>
+
+<script>
+  function OnClickSearch(packages) {
+
+    var PointSymbol3D = packages.PointSymbol3D;
+    var IconSymbol3DLayer = packages.IconSymbol3DLayer;
+    var esriRequest = packages.esriRequest;
+    var esriConfig = packages.esriConfig;
+    var Point = packages.Point;
+    var view = packages.view;
+    var map = packages.map;
+    var FeatureLayer = packages.FeatureLayer;
+    var GraphicsLayer = packages.GraphicsLayer;
+    var SimpleMarkerSymbol = packages.SimpleMarkerSymbol;
+    var Graphic = packages.Graphic;
+    var PopupTemplate = packages.PopupTemplate;
+    var Legend = packages.Legend;
+    var SimpleRenderer = packages.SimpleRenderer;
+
+
+    function getRandomColor() {
+      var letters = '0123456789ABCDEF';
+      var color = '#';
+      for (var i = 0; i < 6; i++ ) {
+        color += letters[Math.floor(Math.random() * 16)];
+      }
+      return color;
+    }
+
+    function getIconSymbol(IconColor){
+      var iconSymbol = new PointSymbol3D({
+        symbolLayers: [new IconSymbol3DLayer({
+          size: 16,
+          resource: {
+            primitive: "square"
+            //href: "http://127.0.0.1:8080/Library/Test.png"
+          },
+          material: {
+            color: IconColor //getRandomColor()
+          },
+          outline: {
+            color: "white",
+            size: 2
+          }
+        })]
+      });
+      return iconSymbol;
+    }
+
+    var LoadPOIs = function() {
+
+      var PoiName = $('[name=PoiName]').val();
+      var Lat = $('[name=Lat]').val();
+      var Lon = $('[name=Lon]').val();
+      var Radius = $('[name=Radius]').val();
+      var PoiNumber = $('[name=PoiNumber]').val();
+
+      function getData(){
+        esriConfig.request.corsEnabledServers.push("https://api.tomtom.com");
+        esriConfig.request.corsEnabledServers.push("http://127.0.0.1:8080");
+        url = "https://api.tomtom.com/search/2/poiSearch/" + PoiName + ".json?key=kspvru2jqtguafeuztf9fx6s&lat=" + Lat + "&lon=" + Lon + "&radius=" + Radius + "&limit=" + PoiNumber;
+        return esriRequest(url, {
+          responseType: "json"
+        });
+      }
+
+      function requestSucceeded(jsondata) {
+
+        if (map.findLayerById(PoiName+Lat+Lon) != undefined){  //If the Layer has already exist, then exit the function !
+          return null;
+        }
+
+        NewGraphicLayer = new GraphicsLayer({
+          "id" : PoiName+Lat+Lon,
+          "title" : PoiName,
+          "elevationInfo": {
+            mode: "relative-to-ground",
+            offset: 10
+          }
+        });
+
+        map.add(NewGraphicLayer);
+
+        data = jsondata.data['results'];
+
+        var IconColor = getRandomColor();
+        var CurrentIconSymbol = getIconSymbol(IconColor);
+
+        data.forEach(function(element, index, array){
+
+          var point = new Point({
+            latitude: element['position']['lat'],
+            longitude: element['position']['lon'],
+            z: 50
+          });
+
+          var Poi = new Graphic({
+            geometry: point,
+            symbol: CurrentIconSymbol,  //iconSymbol,
+            popupTemplate : new PopupTemplate({
+              "title" : element['poi']['name'],
+              "content" : "<ul><li>Address: " + element['address']['freeformAddress'] + "</li>"+
+              "<li>Phone: " + (function(poiphone){ if (poiphone === undefined){return "No Phone";} else {return poiphone;}}(element['poi']['phone'])) + "</li>" + 
+              "<li>Website: " + (function(poiurl){ if (poiurl === undefined){return "No Website";} else {return poiurl;}}(element['poi']['url'])) + "</li>" + "</ul>"
+            })
+          });
+
+          NewGraphicLayer.add(Poi);
+
+        });
+        
+        (function(){
+          if (data.length != 0){
+            $('#poiLegend2').append('<li value="AK">'+ PoiName + " " + Math.round(Lat * 100)/100 + " " + Math.round(Lon * 100)/100 + '<div style="height: 10px; width: 10px; background-color:' + IconColor + '"' + '></div>' +'</li>');
+          }
+        }());  //function execute immediately !
+
+        alert("successed");
+      }
+
+      function requestFailed() {
+        alert("failed");
+      }
+
+      getData()
+      .then(requestSucceeded, requestFailed);
+
+    }
+
+    return LoadPOIs;
+
+  }
+
+
+  function OnClickClear(packages){
+
+    var map = packages.map;
+
+    var ClearPOIs = function() {
+      map.removeAll();  //Clear all POIs;
+      $('#poiLegend2>li').remove();
+    }
+
+    return ClearPOIs;
+  }
+</script>
+
+
+</head>
+
+<body>
+  <div id="viewDiv">
+    <div id = "poisearchDiv">
+      <div id="poiinputBox" class="easyui-panel" title="POI Search" style="width:300px;padding:10px; background-color: white;">
+        <table>
+          <tr>
+            <td>POI Name:</td>
+            <td><input name="PoiName" class="f1 easyui-textbox" value = "school" ></input></td>
+          </tr>
+          <tr>
+            <td>Lat:</td>
+            <td><input id="Lat" name="Lat" class="f1 easyui-textbox" value = "-33.8" ></input></td>
+          </tr>
+          <tr>
+            <td>Lon:</td>
+            <td><input id="Lon" name="Lon" class="f1 easyui-textbox" value = "151.6" ></input></td>
+          </tr>
+          <tr>
+            <td>Radius:</td>
+            <td><input name="Radius" class="f1 easyui-textbox" value="100000"></input></td>
+          </tr>
+          <tr>
+            <td>PoiNumber:</td>
+            <td><input name="PoiNumber" class="f1 easyui-textbox" value="2"></input></td>
+          </tr>
+          <tr>
+            <td><input id="MybuttonSearch" type="button" value="Search" onclick="ClickSearch()"></input></td>
+            <td><input id="MybuttonClear" type="button" value="Clear " onclick="ClickClear()"></input></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div id="poiLegend" style="width:300px">
+      <form style="background: white">
+        <fieldset>
+          <legend><h2>POI Legend</h2></legend>
+          <div id="poiLegend2">
+          </div>
+        </fieldset>
+      </form>
+    </div>
+
+<!--
+    <img id = "poiLogo" src = "https://tomtom.ssl.cdn.sdlmedia.com/image/636026130633605849UP.png" style="z-index: 3;"></img>
+-->
+    <div id = "poiLogo" style = "width: 190px; background-color: white" >
+      <img id = "logo" src = "https://tomtom.ssl.cdn.sdlmedia.com/image/636026130633605849UP.png"></img>
+    </div>
+
+  </div>
+  
+</body>
+</html>
